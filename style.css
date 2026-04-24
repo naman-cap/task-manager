@@ -254,7 +254,7 @@ body {
   flex-wrap: wrap;
 }
 
-.view-title-block {}
+
 
 .view-title {
   font-family: var(--font-display);
@@ -379,7 +379,7 @@ body {
   flex-shrink: 0;
 }
 
-.member-name-block {}
+
 
 .member-name {
   font-weight: 500;
