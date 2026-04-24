@@ -28,82 +28,78 @@ const JIRA_BASE = 'https://capillarytech.atlassian.net/browse/';
 let currentView = 'home';
 let activeFilter = {}; // memberId -> statusValue | null
 
-// ── STORAGE (IndexedDB) ───────────────────────────────────────────────────
+// ── STORAGE (Supabase Cloud DB) ──────────────────────────────────────────
 
-const DB_NAME = 'TaskManagerDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'tasks';
-
-let dbInstance = null;
-
-async function initDB() {
-  if (dbInstance) return dbInstance;
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-      }
-    };
-    request.onsuccess = () => {
-      dbInstance = request.result;
-      resolve(dbInstance);
-    };
-    request.onerror = () => reject(request.error);
-  });
-}
+const SUPABASE_URL = 'https://afyptbwrsbsgfblyjvyp.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmeXB0Yndyc2JzZ2ZibHlqdnlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMTE0NTYsImV4cCI6MjA5MjU4NzQ1Nn0.JseA1AMIhUCnl-QCpqA34J0XD7rQHVFV50fn87vLOdw';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function loadTasks(memberId) {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.getAll();
-    req.onsuccess = () => {
-      const all = req.result || [];
-      resolve(all.filter(t => t.memberId === memberId));
-    };
-    req.onerror = () => reject(req.error);
-  });
+  const { data, error } = await supabaseClient
+    .from('tasks')
+    .select('*')
+    .eq('memberId', memberId)
+    .order('createdAt', { ascending: true });
+  
+  if (error) {
+    console.error('Error loading tasks:', error);
+    return [];
+  }
+  return data;
 }
 
 async function saveTask(task) {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.put(task);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  const { error } = await supabaseClient
+    .from('tasks')
+    .upsert(task);
+  
+  if (error) console.error('Error saving task:', error);
 }
 
 async function deleteTaskFromDB(taskId) {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.delete(taskId);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
+  const { error } = await supabaseClient
+    .from('tasks')
+    .delete()
+    .eq('id', taskId);
+  
+  if (error) console.error('Error deleting task:', error);
 }
 
 async function allTasks() {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.getAll();
-    req.onsuccess = () => {
-      const all = req.result || [];
-      const result = {};
-      MEMBERS.forEach(m => { result[m.id] = all.filter(t => t.memberId === m.id); });
-      resolve(result);
-    };
-    req.onerror = () => reject(req.error);
+  const { data, error } = await supabaseClient
+    .from('tasks')
+    .select('*');
+  
+  if (error) {
+    console.error('Error fetching all tasks:', error);
+    return {};
+  }
+
+  const result = {};
+  MEMBERS.forEach(m => {
+    result[m.id] = data.filter(t => t.memberId === m.id);
   });
+  return result;
+}
+
+// ── REALTIME SYNC ─────────────────────────────────────────────────────────
+
+function setupRealtime() {
+  supabaseClient
+    .channel('schema-db-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, async (payload) => {
+      console.log('Realtime update received:', payload);
+      
+      // Update sidebar/overview count and refresh current view
+      updateLastUpdated();
+      
+      if (currentView === 'home') {
+        renderHomeView();
+      } else {
+        renderMemberView(currentView);
+      }
+    })
+    .subscribe();
 }
 
 function getStatus(value) {
@@ -111,7 +107,7 @@ function getStatus(value) {
 }
 
 function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+  return crypto.randomUUID();
 }
 
 // ── DATE HELPERS ──────────────────────────────────────────────────────────
@@ -609,7 +605,8 @@ function updateLastUpdated() {
 // ── INIT ──────────────────────────────────────────────────────────────────
 
 async function init() {
-  await initDB();
+  // Initialize Realtime subscription
+  setupRealtime();
 
   // Set date
   const dateEl = document.getElementById('header-date');
@@ -624,19 +621,29 @@ async function init() {
   const mobileBtn = document.getElementById('mobile-menu-btn');
   const sidebar = document.getElementById('sidebar');
   const mobileOverlay = document.getElementById('mobile-overlay');
-  mobileBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('open');
-    mobileOverlay.classList.toggle('open');
-  });
-  mobileOverlay.addEventListener('click', () => {
-    sidebar.classList.remove('open');
-    mobileOverlay.classList.remove('open');
-  });
+  if (mobileBtn) {
+    mobileBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+      mobileOverlay.classList.toggle('open');
+    });
+  }
+  if (mobileOverlay) {
+    mobileOverlay.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+      mobileOverlay.classList.remove('open');
+    });
+  }
 
   // Seed demo data if empty
-  if (!localStorage.getItem('demo_seeded_db')) {
-    await seedDemoData();
-    localStorage.setItem('demo_seeded_db', '1');
+  if (!localStorage.getItem('demo_seeded_supabase_v1')) {
+    const tasks = await allTasks();
+    let total = 0;
+    Object.keys(tasks).forEach(k => total += tasks[k].length);
+    
+    if (total === 0) {
+      await seedDemoData();
+      localStorage.setItem('demo_seeded_supabase_v1', '1');
+    }
   }
 
   // Render initial view
