@@ -34,46 +34,71 @@ const SUPABASE_URL = 'https://afyptbwrsbsgfblyjvyp.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmeXB0Yndyc2JzZ2ZibHlqdnlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMTE0NTYsImV4cCI6MjA5MjU4NzQ1Nn0.JseA1AMIhUCnl-QCpqA34J0XD7rQHVFV50fn87vLOdw';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// DB columns are all-lowercase; app uses camelCase internally
+function taskToDb(t) {
+  const row = {
+    id: t.id,
+    memberid: t.memberId,
+    task: t.task,
+    ticket: t.ticket || '',
+    status: t.status,
+    releasenotes: t.releaseNotes || false,
+    techticket: t.techTicket || false,
+    comments: t.comments || '',
+    createdat: t.createdAt,
+  };
+  // Only include updatedat when it has a value — omitting lets the DB default handle it
+  if (t.updatedAt) row.updatedat = t.updatedAt;
+  return row;
+}
+
+function taskFromDb(row) {
+  return {
+    id: row.id,
+    memberId: row.memberid,
+    task: row.task,
+    ticket: row.ticket || '',
+    status: row.status,
+    releaseNotes: row.releasenotes || false,
+    techTicket: row.techticket || false,
+    comments: row.comments || '',
+    createdAt: row.createdat,
+    updatedAt: row.updatedat || null,
+  };
+}
+
 async function loadTasks(memberId) {
-  console.log('Supabase: Loading tasks for', memberId);
   const { data, error } = await supabaseClient
     .from('tasks')
     .select('*')
-    .eq('memberId', memberId)
-    .order('createdAt', { ascending: true });
-  
+    .eq('memberid', memberId)
+    .order('createdat', { ascending: true });
+
   if (error) {
     console.error('Supabase Error (loadTasks):', error);
     return [];
   }
-  console.log('Supabase: Loaded', data.length, 'tasks');
-  return data;
+  return data.map(taskFromDb);
 }
 
 async function saveTask(task) {
-  console.log('Supabase: Saving task...', task);
   const { error } = await supabaseClient
     .from('tasks')
-    .upsert(task);
-  
+    .upsert(taskToDb(task));
+
   if (error) {
     console.error('Supabase Error (saveTask):', error);
-  } else {
-    console.log('Supabase: Save successful');
   }
 }
 
 async function deleteTaskFromDB(taskId) {
-  console.log('Supabase: Deleting task...', taskId);
   const { error } = await supabaseClient
     .from('tasks')
     .delete()
     .eq('id', taskId);
-  
+
   if (error) {
     console.error('Supabase Error (deleteTask):', error);
-  } else {
-    console.log('Supabase: Delete successful');
   }
 }
 
@@ -81,7 +106,7 @@ async function allTasks() {
   const { data, error } = await supabaseClient
     .from('tasks')
     .select('*');
-  
+
   if (error) {
     console.error('Error fetching all tasks:', error);
     return {};
@@ -89,7 +114,7 @@ async function allTasks() {
 
   const result = {};
   MEMBERS.forEach(m => {
-    result[m.id] = data.filter(t => t.memberId === m.id);
+    result[m.id] = data.filter(r => r.memberid === m.id).map(taskFromDb);
   });
   return result;
 }
@@ -326,18 +351,12 @@ async function renderMemberView(memberId) {
               <input type="checkbox" class="inline-checkbox new-tt-input" />
             </td>
             <td><textarea class="inline-edit inline-comments new-comments-input" rows="1" placeholder="Comments..."></textarea></td>
-            <td>
-              <button class="row-action-btn add-btn" title="Save new task">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 7L5 10L12 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </button>
-            </td>
+            <td></td>
           </tr>
         </tbody>
       </table>
     </div>
-    <div class="add-task-zone-trigger" title="Hover here to add a new task"></div>
+    <div class="add-task-zone-trigger"></div>
     
     
     ${doneTasks.length > 0 ? `
@@ -380,21 +399,30 @@ async function renderMemberView(memberId) {
   const trigger = viewEl.querySelector('.add-task-zone-trigger');
   const addRow = viewEl.querySelector('.add-task-row');
   if (trigger && addRow) {
-    trigger.addEventListener('mouseenter', () => addRow.classList.add('visible'));
-    trigger.addEventListener('mouseleave', () => addRow.classList.remove('visible'));
-    addRow.addEventListener('mouseenter', () => addRow.classList.add('visible'));
-    addRow.addEventListener('mouseleave', () => {
-      if (!addRow.contains(document.activeElement)) {
-        addRow.classList.remove('visible');
-      }
-    });
-    // Ensure it stays visible if focused
-    addRow.addEventListener('focusin', () => addRow.classList.add('visible'));
-    addRow.addEventListener('focusout', (e) => {
-      if (!addRow.contains(e.relatedTarget)) {
-        addRow.classList.remove('visible');
-      }
-    });
+    let hideTimer = null;
+
+    const showAddRow = () => {
+      clearTimeout(hideTimer);
+      addRow.classList.add('visible');
+    };
+
+    const scheduleHide = () => {
+      clearTimeout(hideTimer);
+      // Use :hover check so layout-shift-triggered mouseleave doesn't incorrectly
+      // hide the row when the table grows and pushes the trigger down under the cursor.
+      // Also skip hiding if the row is pinned (user has started typing).
+      hideTimer = setTimeout(() => {
+        if (!trigger.matches(':hover') && !addRow.matches(':hover') &&
+            !addRow.contains(document.activeElement) && !addRow.classList.contains('pinned')) {
+          addRow.classList.remove('visible');
+        }
+      }, 150);
+    };
+
+    trigger.addEventListener('mouseenter', showAddRow);
+    trigger.addEventListener('mouseleave', scheduleHide);
+    addRow.addEventListener('mouseenter', showAddRow);
+    addRow.addEventListener('mouseleave', scheduleHide);
   }
 }
 
@@ -513,10 +541,28 @@ function attachInlineEditListeners(viewEl, memberId) {
       renderMemberView(memberId);
     };
 
-    newRow.querySelector('.add-btn').addEventListener('click', saveNew);
+    // Pin the row as soon as the user starts entering any data
+    newRow.querySelectorAll('.inline-edit, .inline-checkbox').forEach(el => {
+      el.addEventListener('input', () => newRow.classList.add('pinned'));
+      el.addEventListener('change', () => newRow.classList.add('pinned'));
+    });
+
+    // Auto-save when focus leaves the row entirely
+    newRow.addEventListener('focusout', async (e) => {
+      if (!newRow.contains(e.relatedTarget)) {
+        const taskVal = newRow.querySelector('.new-task-input').value.trim();
+        if (taskVal) {
+          await saveNew();
+        } else {
+          // Nothing to save — unpin and let hover logic hide it normally
+          newRow.classList.remove('pinned');
+        }
+      }
+    });
+
+    // Also save on Enter in any field
     newRow.querySelectorAll('.inline-edit').forEach(el => {
       el.addEventListener('keydown', (e) => {
-        // Only intercept Enter, not CMD/CTRL+C/V
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           saveNew();

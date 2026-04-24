@@ -681,8 +681,8 @@ body {
   border-radius: 4px;
   display: flex;
   align-items: center;
-  transition: background 0.12s, color 0.12s;
-  opacity: 0;
+  transition: background 0.12s, color 0.12s, opacity 0.12s;
+  opacity: 0.25;
 }
 
 .task-row:hover .row-action-btn {
@@ -692,6 +692,10 @@ body {
 .row-action-btn:hover {
   background: var(--bg-active);
   color: var(--text-primary);
+}
+
+.delete-btn:hover {
+  color: #ef4444;
 }
 
 /* Empty state */
@@ -866,6 +870,30 @@ select.inline-edit {
   margin-bottom: 16px;
   user-select: none;
   transition: color 0.15s;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.completed-tasks-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.completed-tasks-section summary::before {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid currentColor;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.completed-tasks-section[open] summary::before {
+  transform: rotate(90deg);
 }
 
 .completed-tasks-section summary:hover {
