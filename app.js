@@ -236,7 +236,7 @@ async function renderHomeView() {
     mt.forEach(t => { statusCounts[t.status] = (statusCounts[t.status] || 0) + 1; });
 
     const chips = STATUSES.filter(s => statusCounts[s.value])
-      .map(s => `<span class="status-chip ${s.cls}" style="background: transparent; border: 1px solid rgba(255,255,255,0.1)">${statusCounts[s.value]} ${s.label}</span>`)
+      .map(s => `<span class="status-chip ${s.cls}">${statusCounts[s.value]} ${s.label}</span>`)
       .join('');
 
     const card = document.createElement('div');
@@ -688,6 +688,8 @@ function updateLastUpdated() {
 // ── INIT ──────────────────────────────────────────────────────────────────
 
 async function init() {
+  initThemeToggle();
+
   // Initialize Realtime subscription
   setupRealtime();
 
@@ -777,6 +779,32 @@ async function seedDemoData() {
 
   await renderHomeView();
   updateLastUpdated();
+}
+
+// ── THEME TOGGLE ─────────────────────────────────────────────────────────
+
+function initThemeToggle() {
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  const label = btn.querySelector('.theme-label');
+
+  const update = () => {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (label) label.textContent = dark ? 'Light mode' : 'Dark mode';
+  };
+
+  update();
+  btn.addEventListener('click', () => {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    if (dark) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('tbTheme', '');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('tbTheme', 'dark');
+    }
+    update();
+  });
 }
 
 // ── KICK OFF ──────────────────────────────────────────────────────────────

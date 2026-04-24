@@ -7,8 +7,9 @@
   <meta name="description" content="Daily task tracking board for the CapDoc team. Track tasks, doc tickets, and statuses for each team member." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script>(function(){var t=localStorage.getItem('tbTheme');if(t)document.documentElement.setAttribute('data-theme',t);})();</script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -57,6 +58,16 @@
       </nav>
 
       <div class="sidebar-footer">
+        <button class="theme-toggle-btn" id="theme-toggle" aria-label="Toggle theme">
+          <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+          </svg>
+          <svg class="icon-sun" viewBox="0 0 20 20" fill="none" width="14" height="14">
+            <circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M10 1v2M10 17v2M1 10h2M17 10h2M3.22 3.22l1.42 1.42M15.36 15.36l1.42 1.42M3.22 16.78l1.42-1.42M15.36 4.64l1.42-1.42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span class="theme-label">Dark mode</span>
+        </button>
         <div class="last-updated" id="last-updated-sidebar"></div>
       </div>
     </aside>
@@ -68,7 +79,7 @@
       <div class="view active" id="view-home">
         <div class="view-header">
           <div class="view-title-block">
-            <h1 class="view-title">Good morning, team 👋</h1>
+            <h1 class="view-title">Good morning, team</h1>
             <p class="view-subtitle">Here's how the board looks today</p>
           </div>
           <div class="header-date" id="header-date"></div>
