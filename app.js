@@ -35,6 +35,7 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 async function loadTasks(memberId) {
+  console.log('Supabase: Loading tasks for', memberId);
   const { data, error } = await supabaseClient
     .from('tasks')
     .select('*')
@@ -42,27 +43,38 @@ async function loadTasks(memberId) {
     .order('createdAt', { ascending: true });
   
   if (error) {
-    console.error('Error loading tasks:', error);
+    console.error('Supabase Error (loadTasks):', error);
     return [];
   }
+  console.log('Supabase: Loaded', data.length, 'tasks');
   return data;
 }
 
 async function saveTask(task) {
+  console.log('Supabase: Saving task...', task);
   const { error } = await supabaseClient
     .from('tasks')
     .upsert(task);
   
-  if (error) console.error('Error saving task:', error);
+  if (error) {
+    console.error('Supabase Error (saveTask):', error);
+  } else {
+    console.log('Supabase: Save successful');
+  }
 }
 
 async function deleteTaskFromDB(taskId) {
+  console.log('Supabase: Deleting task...', taskId);
   const { error } = await supabaseClient
     .from('tasks')
     .delete()
     .eq('id', taskId);
   
-  if (error) console.error('Error deleting task:', error);
+  if (error) {
+    console.error('Supabase Error (deleteTask):', error);
+  } else {
+    console.log('Supabase: Delete successful');
+  }
 }
 
 async function allTasks() {
@@ -293,6 +305,8 @@ async function renderMemberView(memberId) {
         </thead>
         <tbody>
           ${activeTasks.map(task => renderTaskRow(task, memberId)).join('')}
+          <!-- Ghost trigger row for hover -->
+          <tr class="add-row-trigger"><td colspan="7"></td></tr>
           <!-- Inline Add Row -->
           <tr class="task-row add-task-row" data-member-id="${memberId}">
             <td>
@@ -481,7 +495,8 @@ function attachInlineEditListeners(viewEl, memberId) {
     newRow.querySelector('.add-btn').addEventListener('click', saveNew);
     newRow.querySelectorAll('.inline-edit').forEach(el => {
       el.addEventListener('keydown', (e) => {
-        if ((e.metaKey || e.ctrlKey || e.key === 'Enter') && !e.shiftKey) {
+        // Only intercept Enter, not CMD/CTRL+C/V
+        if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           saveNew();
         }
@@ -539,7 +554,8 @@ function attachInlineEditListeners(viewEl, memberId) {
         });
         el.addEventListener('blur', updateCurrentTask);
         el.addEventListener('keydown', (e) => {
-          if ((e.metaKey || e.ctrlKey || e.key === 'Enter') && !e.shiftKey) {
+          // Only intercept Enter, not CMD/CTRL+C/V
+          if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             el.blur(); // will trigger update
           }

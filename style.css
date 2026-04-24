@@ -806,14 +806,27 @@ select.inline-edit {
   opacity: 1;
 }
 
+.add-row-trigger {
+  height: 60px;
+  cursor: pointer;
+}
+
 .add-task-row {
   display: none;
   background: rgba(255, 255, 255, 0.02);
 }
 
-.task-table:hover .add-task-row,
+/* Show row if trigger is hovered, OR if the row itself is being interacted with */
+.add-row-trigger:hover + .add-task-row,
+.add-task-row:hover,
 .add-task-row:focus-within {
   display: table-row;
+}
+
+/* Hide trigger if the actual add row is visible to keep the table tight */
+.add-row-trigger:has(+ .add-task-row:hover),
+.add-row-trigger:has(+ .add-task-row:focus-within) {
+  display: none;
 }
 
 .add-task-row input::placeholder,
