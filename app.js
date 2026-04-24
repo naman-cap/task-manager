@@ -305,9 +305,7 @@ async function renderMemberView(memberId) {
         </thead>
         <tbody>
           ${activeTasks.map(task => renderTaskRow(task, memberId)).join('')}
-          <!-- Ghost trigger row for hover -->
-          <tr class="add-row-trigger"><td colspan="7"></td></tr>
-          <!-- Inline Add Row -->
+          <!-- Inline Add Row (Hidden by default) -->
           <tr class="task-row add-task-row" data-member-id="${memberId}">
             <td>
               <div class="task-cell-wrapper">
@@ -339,6 +337,8 @@ async function renderMemberView(memberId) {
         </tbody>
       </table>
     </div>
+    <div class="add-task-zone-trigger" title="Hover here to add a new task"></div>
+    
     
     ${doneTasks.length > 0 ? `
       <details class="completed-tasks-section">
@@ -375,6 +375,27 @@ async function renderMemberView(memberId) {
 
   // Attach event listeners for inline editing
   attachInlineEditListeners(viewEl, memberId);
+
+  // External trigger for Add Task row
+  const trigger = viewEl.querySelector('.add-task-zone-trigger');
+  const addRow = viewEl.querySelector('.add-task-row');
+  if (trigger && addRow) {
+    trigger.addEventListener('mouseenter', () => addRow.classList.add('visible'));
+    trigger.addEventListener('mouseleave', () => addRow.classList.remove('visible'));
+    addRow.addEventListener('mouseenter', () => addRow.classList.add('visible'));
+    addRow.addEventListener('mouseleave', () => {
+      if (!addRow.contains(document.activeElement)) {
+        addRow.classList.remove('visible');
+      }
+    });
+    // Ensure it stays visible if focused
+    addRow.addEventListener('focusin', () => addRow.classList.add('visible'));
+    addRow.addEventListener('focusout', (e) => {
+      if (!addRow.contains(e.relatedTarget)) {
+        addRow.classList.remove('visible');
+      }
+    });
+  }
 }
 
 function renderTaskRow(task, memberId) {

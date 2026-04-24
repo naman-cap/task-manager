@@ -806,9 +806,16 @@ select.inline-edit {
   opacity: 1;
 }
 
-.add-row-trigger {
-  height: 60px;
-  cursor: pointer;
+.add-task-zone-trigger {
+  height: 80px;
+  width: 100%;
+  margin-top: 4px;
+  cursor: cell;
+  transition: background 0.3s;
+}
+
+.add-task-zone-trigger:hover {
+  background: rgba(255, 255, 255, 0.01);
 }
 
 .add-task-row {
@@ -816,18 +823,13 @@ select.inline-edit {
   background: rgba(255, 255, 255, 0.02);
 }
 
-/* Show row if trigger is hovered, OR if the row itself is being interacted with */
-.add-row-trigger:hover + .add-task-row,
-.add-task-row:hover,
-.add-task-row:focus-within {
+.add-task-row.visible {
   display: table-row;
 }
 
-/* Hide trigger if the actual add row is visible to keep the table tight */
-.add-row-trigger:has(+ .add-task-row:hover),
-.add-row-trigger:has(+ .add-task-row:focus-within) {
-  display: none;
-}
+/* The selector above is complex, let's use a simpler class-based one if needed, 
+   but for now we'll use a direct sibling check in app.js if this feels brittle. */
+
 
 .add-task-row input::placeholder,
 .add-task-row textarea::placeholder {
