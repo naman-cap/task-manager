@@ -245,7 +245,7 @@ async function renderHomeView() {
       <div class="team-card-left">
         <div class="member-avatar" style="background:${m.bg};color:${m.accent}">${m.initials}</div>
         <div class="member-name-block">
-          <div class="member-name">${m.name}${m.role === 'manager' ? ' <span style="font-size:10px;color:var(--accent-neeraj);background:rgba(245,158,11,0.12);padding:1px 6px;border-radius:3px;font-family:var(--font-mono)">mgr</span>' : ''}</div>
+          <div class="member-name">${m.name}</div>
           <div class="member-task-count">${mt.length} task${mt.length !== 1 ? 's' : ''} · ${open} open</div>
         </div>
       </div>
