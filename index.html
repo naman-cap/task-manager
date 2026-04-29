@@ -55,6 +55,10 @@
           <div class="member-dot" style="background: var(--accent-naman)"></div>
           <span>Naman</span>
         </button>
+        <button class="nav-item" data-view="jira-bot" id="nav-jira-bot">
+          <div class="member-dot" style="background: var(--accent-jira-bot)"></div>
+          <span>JIRA Bot</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -68,6 +72,16 @@
           </svg>
           <span class="theme-label">Dark mode</span>
         </button>
+        <div class="jira-sync-row">
+          <div id="jira-sync-status" class="jira-sync-status"></div>
+          <button id="jira-sync-btn" class="jira-sync-btn" title="Sync Jira now" aria-label="Sync Jira now">
+            <svg viewBox="0 0 16 16" fill="none" width="12" height="12">
+              <path d="M13.5 2.5A6.5 6.5 0 003 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M2.5 13.5A6.5 6.5 0 0013 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M11 1l2.5 1.5L12 5M5 15l-2.5-1.5L4 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
         <div class="last-updated" id="last-updated-sidebar"></div>
       </div>
     </aside>
@@ -100,6 +114,7 @@
       <div class="view" id="view-madhurima" data-member="madhurima"></div>
       <div class="view" id="view-george" data-member="george"></div>
       <div class="view" id="view-naman" data-member="naman"></div>
+      <div class="view" id="view-jira-bot" data-member="jira-bot"></div>
 
     </main>
   </div>

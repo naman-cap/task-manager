@@ -1,0 +1,21 @@
+name: Jira Sync
+
+on:
+  schedule:
+    - cron: '30 3 * * 1-5'   # 9:00 AM IST  (Mon–Fri)
+    - cron: '30 9 * * 1-5'   # 3:00 PM IST  (Mon–Fri)
+    - cron: '30 14 * * 1-5'  # 8:00 PM IST  (Mon–Fri)
+  workflow_dispatch:           # manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jira sync via Supabase Edge Function
+        run: |
+          STATUS=$(curl -s -o /tmp/resp.json -w "%{http_code}" -X POST \
+            'https://afyptbwrsbsgfblyjvyp.supabase.co/functions/v1/jira-sync' \
+            -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmeXB0Yndyc2JzZ2ZibHlqdnlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMTE0NTYsImV4cCI6MjA5MjU4NzQ1Nn0.JseA1AMIhUCnl-QCpqA34J0XD7rQHVFV50fn87vLOdw' \
+            -H 'Content-Type: application/json')
+          cat /tmp/resp.json
+          [ "$STATUS" = "200" ] || exit 1

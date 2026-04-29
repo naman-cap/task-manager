@@ -27,6 +27,7 @@
   --accent-madhurima: #a78bfa;
   --accent-george: #34d399;
   --accent-naman: #5865F2;
+  --accent-jira-bot: #73C2FB;
 
   /* Status semantic colors — light mode */
   --s-ns-bg: #EBECF0;   --s-ns-text: #42526E;
@@ -774,6 +775,7 @@ textarea.inline-edit {
   line-height: 1.4;
   vertical-align: middle;
   min-height: 32px;
+  field-sizing: content; /* Chrome 123+: auto-size to content, no JS needed */
 }
 
 select.inline-edit {
@@ -1208,6 +1210,47 @@ select.inline-edit {
 
 .modal-btn.secondary:hover {
   background: var(--bg-active);
+}
+
+/* ============== JIRA SYNC ============== */
+.jira-sync-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.jira-sync-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jira-sync-status[data-state="error"] { color: #ef4444; }
+.jira-sync-status[data-state="syncing"] { color: var(--cap-green); }
+
+.jira-sync-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.jira-sync-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
 /* ============== THEME TOGGLE ============== */

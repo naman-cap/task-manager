@@ -10,6 +10,7 @@ const MEMBERS = [
   { id: 'madhurima', name: 'Madhurima', initials: 'M', role: null, accent: '#a78bfa', bg: 'rgba(167,139,250,0.18)' },
   { id: 'george', name: 'George', initials: 'G', role: null, accent: '#34d399', bg: 'rgba(52,211,153,0.18)' },
   { id: 'naman', name: 'Naman', initials: 'N', role: null, accent: '#5865F2', bg: 'rgba(88,101,242,0.18)' },
+  { id: 'jira-bot', name: 'JIRA Bot', initials: 'JB', role: null, accent: '#73C2FB', bg: 'rgba(115,194,251,0.18)' },
 ];
 
 const STATUSES = [
@@ -22,6 +23,10 @@ const STATUSES = [
 ];
 
 const JIRA_BASE = 'https://capillarytech.atlassian.net/browse/';
+
+// ── JIRA CONFIG ───────────────────────────────────────────────────────────
+
+const JIRA_SYNC_SLOTS = [9, 15, 20]; // weekday hours: 9AM, 3PM, 8PM
 
 // ── STATE ─────────────────────────────────────────────────────────────────
 
@@ -395,6 +400,9 @@ async function renderMemberView(memberId) {
   // Attach event listeners for inline editing
   attachInlineEditListeners(viewEl, memberId);
 
+  // Auto-resize all textareas so long text isn't clipped on initial render
+  autoResizeAll(viewEl);
+
   // External trigger for Add Task row
   const trigger = viewEl.querySelector('.add-task-zone-trigger');
   const addRow = viewEl.querySelector('.add-task-row');
@@ -511,6 +519,17 @@ function ticketHtml(ticket) {
 }
 
 // ── INLINE EDITING LOGIC ──────────────────────────────────────────────────
+
+function autoResizeAll(container) {
+  // field-sizing:content handles this in Chrome 123+; rAF covers older engines
+  if (CSS.supports('field-sizing', 'content')) return;
+  requestAnimationFrame(() => {
+    container.querySelectorAll('textarea.inline-edit').forEach(ta => {
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    });
+  });
+}
 
 function attachInlineEditListeners(viewEl, memberId) {
   // Add new task on enter or add btn click
@@ -689,6 +708,7 @@ function updateLastUpdated() {
 
 async function init() {
   initThemeToggle();
+  initJiraSync();
 
   // Initialize Realtime subscription
   setupRealtime();
@@ -779,6 +799,86 @@ async function seedDemoData() {
 
   await renderHomeView();
   updateLastUpdated();
+}
+
+// ── JIRA INTEGRATION ─────────────────────────────────────────────────────
+
+async function syncJiraTasks() {
+  setJiraSyncUI('syncing');
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('jira-sync');
+    if (error) throw error;
+
+    const now = new Date().toISOString();
+    localStorage.setItem('jira_last_sync', now);
+    setJiraSyncUI('done', now, data?.added ?? 0);
+    if (currentView === 'home') renderHomeView();
+    else renderMemberView(currentView);
+  } catch (err) {
+    console.error('[Jira] Sync error:', err);
+    setJiraSyncUI('error');
+  }
+}
+
+function setJiraSyncUI(state, isoTime, count) {
+  const el = document.getElementById('jira-sync-status');
+  if (!el) return;
+  el.dataset.state = state;
+  if (state === 'syncing') {
+    el.textContent = 'Jira syncing…';
+  } else if (state === 'error') {
+    el.textContent = 'Jira sync failed';
+  } else {
+    const t = isoTime
+      ? new Date(isoTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      : '—';
+    el.textContent = `Jira ${t}${count ? ` +${count}` : ''}`;
+  }
+}
+
+function shouldRunJiraSync() {
+  const d = new Date().getDay();
+  if (d === 0 || d === 6) return false;
+  const h = new Date().getHours();
+  const lastPast = [...JIRA_SYNC_SLOTS].reverse().find(s => h >= s);
+  if (lastPast === undefined) return false;
+  const slotTime = new Date();
+  slotTime.setHours(lastPast, 0, 0, 0);
+  const last = localStorage.getItem('jira_last_sync');
+  return !last || new Date(last) < slotTime;
+}
+
+function scheduleNextJiraSync() {
+  const now = new Date();
+  const day = now.getDay();
+  const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+  const isWeekday = day >= 1 && day <= 5;
+  const nextSlot = isWeekday ? JIRA_SYNC_SLOTS.find(s => h < s) : undefined;
+
+  let nextMs;
+  if (nextSlot !== undefined) {
+    const next = new Date(now);
+    next.setHours(nextSlot, 0, 0, 0);
+    nextMs = next - now;
+  } else {
+    const daysAhead = day === 5 ? 3 : (day === 6 ? 2 : 1);
+    const next = new Date(now);
+    next.setDate(now.getDate() + daysAhead);
+    next.setHours(9, 0, 0, 0);
+    nextMs = next - now;
+  }
+
+  setTimeout(async () => {
+    await syncJiraTasks();
+    scheduleNextJiraSync();
+  }, nextMs);
+}
+
+function initJiraSync() {
+  setJiraSyncUI('done', localStorage.getItem('jira_last_sync'), null);
+  document.getElementById('jira-sync-btn')?.addEventListener('click', syncJiraTasks);
+  if (shouldRunJiraSync()) syncJiraTasks();
+  scheduleNextJiraSync();
 }
 
 // ── THEME TOGGLE ─────────────────────────────────────────────────────────
