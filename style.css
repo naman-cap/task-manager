@@ -1212,6 +1212,23 @@ select.inline-edit {
   background: var(--bg-active);
 }
 
+/* ============== JIRA ENRICH LOADING ============== */
+.inline-ticket[data-enriching="true"] {
+  opacity: 0.5;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--bg-surface) 0px,
+    var(--bg-active)  8px,
+    var(--bg-surface) 16px
+  );
+  background-size: 200% 100%;
+  animation: ticket-loading 1s linear infinite;
+}
+@keyframes ticket-loading {
+  from { background-position: 200% 0; }
+  to   { background-position: 0 0; }
+}
+
 /* ============== JIRA SYNC ============== */
 .jira-sync-row {
   display: flex;

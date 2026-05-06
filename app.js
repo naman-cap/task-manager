@@ -566,6 +566,26 @@ function attachInlineEditListeners(viewEl, memberId) {
       el.addEventListener('change', () => newRow.classList.add('pinned'));
     });
 
+    // Enrich from Jira when ticket key is entered in the new-task row
+    const newTicketInput  = newRow.querySelector('.new-ticket-input');
+    const newTaskInput    = newRow.querySelector('.new-task-input');
+    const newStatusInput  = newRow.querySelector('.new-status-input');
+    const newTtInput      = newRow.querySelector('.new-tt-input');
+    newTicketInput?.addEventListener('blur', async () => {
+      const val = newTicketInput.value.trim();
+      if (!val) return;
+      newTicketInput.dataset.enriching = 'true';
+      const result = await enrichFromJira(val);
+      delete newTicketInput.dataset.enriching;
+      if (!result) return;
+      // Only fill task name if user hasn't typed one yet
+      if (newTaskInput && !newTaskInput.value.trim()) newTaskInput.value = result.summary;
+      if (newStatusInput) newStatusInput.value = result.status;
+      if (newTtInput) newTtInput.checked = true;
+      newTicketInput.value = result.key;
+      newRow.classList.add('pinned');
+    });
+
     // Auto-save when focus leaves the row entirely
     newRow.addEventListener('focusout', async (e) => {
       if (!newRow.contains(e.relatedTarget)) {
@@ -625,8 +645,9 @@ function attachInlineEditListeners(viewEl, memberId) {
 
       await saveTask(updatedTask);
       updateLastUpdated();
-      // Re-render if status changed to 'done' or filter is active
+      // Re-render if status changed; also push transition back to Jira
       if (existing.status !== statusVal) {
+        if (ticketVal) transitionJiraTicket(ticketVal, statusVal); // fire-and-forget
         renderMemberView(memberId);
       }
     };
@@ -645,6 +666,31 @@ function attachInlineEditListeners(viewEl, memberId) {
             e.preventDefault();
             el.blur(); // will trigger update
           }
+        });
+      } else if (el.classList.contains('edit-ticket-field')) {
+        // Save on value change (standard behaviour)
+        el.addEventListener('change', updateCurrentTask);
+        // Enrich from Jira on blur — Jira is source of truth for summary + status
+        el.addEventListener('blur', async () => {
+          const val = el.value.trim();
+          if (!val) return;
+          el.dataset.enriching = 'true';
+          const result = await enrichFromJira(val);
+          delete el.dataset.enriching;
+          if (!result) return;
+          const taskField = row.querySelector('.edit-task-field');
+          const statusSel = row.querySelector('.edit-status-field');
+          const ttBox     = row.querySelector('.edit-tt-field');
+          if (taskField) taskField.value = result.summary;
+          if (statusSel) {
+            statusSel.value = result.status;
+            statusSel.className = `inline-edit inline-status edit-status-field ${getStatus(result.status).cls}`;
+          }
+          if (ttBox) ttBox.checked = true;
+          el.value = result.key; // normalise key (e.g. "182100" → "CAP-182100")
+          await updateCurrentTask();
+          // Re-render to update status badge colour and link icon
+          renderMemberView(memberId);
         });
       } else {
         el.addEventListener('change', updateCurrentTask);
@@ -806,12 +852,14 @@ async function seedDemoData() {
 async function syncJiraTasks() {
   setJiraSyncUI('syncing');
   try {
-    const { data, error } = await supabaseClient.functions.invoke('jira-sync');
+    const { data, error } = await supabaseClient.functions.invoke('jira-sync', {
+      body: { action: 'sync' }
+    });
     if (error) throw error;
 
     const now = new Date().toISOString();
     localStorage.setItem('jira_last_sync', now);
-    setJiraSyncUI('done', now, data?.added ?? 0);
+    setJiraSyncUI('done', now, data?.added ?? 0, data?.updated ?? 0);
     if (currentView === 'home') renderHomeView();
     else renderMemberView(currentView);
   } catch (err) {
@@ -820,7 +868,36 @@ async function syncJiraTasks() {
   }
 }
 
-function setJiraSyncUI(state, isoTime, count) {
+// Push an app status change back to Jira as a workflow transition
+async function transitionJiraTicket(rawKey, appStatus) {
+  const trimmed = rawKey.trim();
+  if (!trimmed) return;
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('jira-sync', {
+      body: { action: 'transition', ticket: trimmed, appStatus }
+    });
+    if (error) throw error;
+    if (!data?.ok) console.warn('[Jira] Transition not applied:', data?.error, data?.available);
+    else console.log(`[Jira] Transitioned ${trimmed} → ${data.transitioned}`);
+  } catch (err) {
+    console.warn('[Jira] Transition error:', err);
+  }
+}
+
+// On-demand Jira enrichment for a single ticket key
+async function enrichFromJira(rawKey) {
+  const trimmed = rawKey.trim();
+  if (!trimmed) return null;
+  try {
+    const { data, error } = await supabaseClient.functions.invoke('jira-sync', {
+      body: { action: 'enrich', ticket: trimmed }
+    });
+    if (error || !data?.ok) return null;
+    return data; // { key, summary, status }
+  } catch { return null; }
+}
+
+function setJiraSyncUI(state, isoTime, added, updated) {
   const el = document.getElementById('jira-sync-status');
   if (!el) return;
   el.dataset.state = state;
@@ -832,7 +909,10 @@ function setJiraSyncUI(state, isoTime, count) {
     const t = isoTime
       ? new Date(isoTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
       : '—';
-    el.textContent = `Jira ${t}${count ? ` +${count}` : ''}`;
+    const parts = [];
+    if (added)   parts.push(`+${added}`);
+    if (updated) parts.push(`~${updated}`);
+    el.textContent = `Jira ${t}${parts.length ? ' ' + parts.join(' ') : ''}`;
   }
 }
 
@@ -879,6 +959,17 @@ function initJiraSync() {
   document.getElementById('jira-sync-btn')?.addEventListener('click', syncJiraTasks);
   if (shouldRunJiraSync()) syncJiraTasks();
   scheduleNextJiraSync();
+
+  // Near-realtime Jira → App: re-sync when the tab regains focus,
+  // throttled to once every 60s so quick tab switches don't hammer the API.
+  let lastFocusSync = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const now = Date.now();
+    if (now - lastFocusSync < 60_000) return;
+    lastFocusSync = now;
+    syncJiraTasks();
+  });
 }
 
 // ── THEME TOGGLE ─────────────────────────────────────────────────────────
